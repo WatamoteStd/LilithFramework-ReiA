@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks> 
+
+   
+    <PackageId>ReiAlloc</PackageId> 
+    <Version>0.1.0</Version>
+    <Authors>Watashi</Authors>
+    <Company>Watashi</Company>
+    <Description>Lightweight reliable udp library.</Description>
+    <PackageTags>networking;protocol;udp;game-dev</PackageTags>
+    <RepositoryUrl>https://github.com/WatamoteStd/ReiA</RepositoryUrl>
+  </PropertyGroup>
+
+</Project>
