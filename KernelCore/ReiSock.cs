@@ -10,11 +10,12 @@ public unsafe class ReiSock
     private const uint SIO_GET_MULTIPLE_EXTENSION_FUNCTION_POINTER = 0xC8000024;
 
     
+    // IMPORTS
     [DllImport(LibName, SetLastError = true)]
     public static extern nint WSASocketW(int af, int type, int protocol, nint lpProtocolInfo, uint g, uint dwFlags);
 
     [DllImport(LibName, SetLastError = true)]
-    public static extern int closeSocket(nint a);
+    public static extern int closesocket(nint a);
 
     [DllImport(LibName, SetLastError = true)]
     public static extern int WSAIoctl(
@@ -28,6 +29,12 @@ public unsafe class ReiSock
         nint lpOverlapped,
         nint lpCompletionRoutine
     );
+
+    // DELEGATES
+    private delegate nint RIORegisterBufferDelegate(byte* ptr, uint length);
+
+
+
 
     [StructLayout(LayoutKind.Sequential)]
     public struct RIO_EXTENSION_FUNCTION_TABLE
@@ -91,13 +98,29 @@ public unsafe class ReiSock
             throw new InvalidOperationException($"Can't reach RIO-TABLE. Win32 error: {error}");
         }
 
-        RIO_EXTENSION_FUNCTION_TABLE table = Marshal.PtrToStructure<RIO_EXTENSION_FUNCTION_TABLE>(pTableOut);
+        initTable = Marshal.PtrToStructure<RIO_EXTENSION_FUNCTION_TABLE>(pTableOut);
 
         Marshal.FreeHGlobal(pTableOut);
 
-        return table;
+        return initTable;
 
- 
+    }
+
+    public static nint RegisterMemoryBuffer(nint functionPtr, byte* bufferPtr, uint size)
+    {
+        
+        var registerFunc = Marshal.GetDelegateForFunctionPointer<RIORegisterBufferDelegate>(functionPtr);
+
+        nint bufferId = registerFunc(bufferPtr, size);
+
+        if(bufferId == -1) // RIO_INVALID_BUFFER_ID
+        {
+            int error = Marshal.GetLastWin32Error();
+            throw new InvalidOperationException($"Can't register buffer in kernel. Eror win32: {error}");
+        }
+
+        return bufferId;
+
     }
 
 
