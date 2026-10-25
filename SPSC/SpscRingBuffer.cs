@@ -30,7 +30,7 @@ public unsafe struct SpscRingBuffer
     }
 
 
-    public bool Write(ReadOnlySpan<byte> packet)
+    public SPSCResponse Write(ReadOnlySpan<byte> packet)
     {
         
         int packetLength = packet.Length;
@@ -39,7 +39,7 @@ public unsafe struct SpscRingBuffer
 
         if(_tail - _head + totalSize > capacity)
         {
-            return false; // drop packet
+            return SPSCResponse.OutOfMemory; // drop packet
         }
 
         int writeIndex = _tail & _capacityMask;
@@ -53,7 +53,30 @@ public unsafe struct SpscRingBuffer
 
         _tail += totalSize;
 
-        return true;
+        return SPSCResponse.Ok;
+
+    }
+
+    public SPSCResponse Read(Span<byte> outputBuffer, out int bytesRead)
+    {
+        bytesRead = 0;
+        
+        if (_head == _tail) return SPSCResponse.EmptyStorage;
+
+        int readIndex = _head & _capacityMask;
+        ushort packetLength = *(ushort*)(_buffer + readIndex);
+
+        if(outputBuffer.Length < packetLength) return SPSCResponse.SmallBuffer;
+
+        fixed(byte* ptr = outputBuffer)
+        {
+            Buffer.MemoryCopy(_buffer + readIndex + 2, ptr, outputBuffer.Length, packetLength);
+        }
+
+        _head += 2 + packetLength;
+        bytesRead = packetLength;
+
+        return SPSCResponse.Ok;
 
     }
 
