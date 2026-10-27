@@ -1,70 +1,120 @@
 
+
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace SPSC;
-
-[StructLayout(LayoutKind.Explicit, Size = 192)]
-public unsafe struct SpscRingBuffer
+[StructLayout(LayoutKind.Explicit, Size = 128)]
+public unsafe struct SpscRingBuffer : IDisposable
 {
-    
-    [FieldOffset(0)] private readonly byte* _buffer;
-    [FieldOffset(8)] private readonly int _capacityMask;
-    [FieldOffset(16)] private volatile int _head;
-    [FieldOffset(80)] private volatile int _tail;
+    [FieldOffset(0)] ulong Count;
+    [FieldOffset(8)] ushort Capacity;
+    [FieldOffset(16)] byte* MemoryPtr;
+    [FieldOffset(32)] byte* PtrReader;
+    [FieldOffset(96)] byte* PtrWriter;
 
-    public SpscRingBuffer(int capacity)
+    public SpscRingBuffer(ushort capacity)
     {
         
-        if(capacity <= 0 || (capacity & (capacity - 1)) != 0)
+        if ((capacity & (capacity - 1)) != 0 || capacity < 4096)
         {
-            throw new ArgumentException("Capacity must be a positive power of 2");
+            throw new ArgumentException($"[SpscRingBuffer| Initialization] Invalid capacity. ( It might be always ^2 and now lower than 4096 bytes.)");
         }
 
-        _capacityMask = capacity - 1;   
-        _head = 0;
-        _tail = 0;
+        MemoryPtr = (byte*)NativeMemory.Alloc(capacity);
 
-        _buffer = (byte*)NativeMemory.Alloc((nuint)capacity);
+        Capacity = capacity;
+        Count = 0;
 
+        PtrReader = MemoryPtr;
+        PtrWriter = MemoryPtr;
 
     }
 
-
-    public bool Write(ReadOnlySpan<byte> packet)
+    public void Write(ReadOnlySpan<byte> packetSpan)
     {
+
+
+        if (Count + (ulong)packetSpan.Length + 2 > Capacity)
+        {
+            Console.WriteLine($"[Packet Drop] Packet bigger than capacity of the buffer. {packetSpan.Length} bytes");
+            return;
+        }
         
-        int packetLength = packet.Length;
-        int totalSize = 2 + packetLength;
-        int capacity = _capacityMask + 1;
-
-        if(_tail - _head + totalSize > capacity)
+        if (PtrWriter + packetSpan.Length + 2 > MemoryPtr + Capacity)
         {
-            return false; // drop packet
+            ulong tailSpace = (ulong)((MemoryPtr + Capacity) - PtrWriter);
+            if (tailSpace >= 2)
+            {
+                *(ushort*)PtrWriter = 0;
+            }
+            Count += tailSpace;
+            PtrWriter = MemoryPtr;
         }
 
-        int writeIndex = _tail & _capacityMask;
+        *(ushort*)PtrWriter = (ushort)packetSpan.Length;
+        PtrWriter += 2;
 
-        *(ushort*)(_buffer + writeIndex) = (ushort)packetLength;
-
-        fixed(byte* src = packet)
+        fixed(byte* packetPtr = packetSpan)
         {
-            Buffer.MemoryCopy(src, _buffer + writeIndex + 2, capacity - (writeIndex + 2), packetLength);
+            
+            Buffer.MemoryCopy(packetPtr, PtrWriter, Capacity, packetSpan.Length);
+            PtrWriter += packetSpan.Length;
+
+            Count += (ulong)packetSpan.Length + 2;
+
         }
-
-        _tail += totalSize;
-
-        return true;
 
     }
 
+    public void Read(Span<byte> readBuffer)
+    {
+        
+        if(PtrReader == PtrWriter && Count == 0) return;
+
+        if (PtrReader == MemoryPtr + Capacity - 1)
+        {
+            Count -= 1;
+            PtrReader = MemoryPtr;
+        }
+
+        ushort packetLength = *(ushort*)PtrReader;
+
+        if(packetLength == 0)
+        {
+            ulong skippedTail = (ulong)((MemoryPtr + Capacity) - PtrReader);
+            Count -= skippedTail;
+
+            PtrReader = MemoryPtr;
+            packetLength = *(ushort*)PtrReader;
+        }
+
+        PtrReader += 2;
+
+        fixed(byte* bufferPtr = readBuffer)
+        {
+            
+            Buffer.MemoryCopy(PtrReader, bufferPtr, readBuffer.Length, packetLength);
+
+        }
+
+        PtrReader += packetLength;
+        Count -= (ulong)packetLength + 2;
+
+    }
 
 
     public void Dispose()
     {
-        if(_buffer != null)
+        
+        if(PtrReader != null)
         {
-            NativeMemory.Free(_buffer);
+            NativeMemory.Free(MemoryPtr);
+            MemoryPtr = null;
+            PtrReader = null;
+            PtrWriter = null;
         }
+
     }
+
 
 }
