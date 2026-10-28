@@ -1,4 +1,3 @@
-
 using System.Net;
 using System.Net.Sockets;
 using System.Security;
@@ -18,9 +17,12 @@ public class ReiHost
     private readonly int _port;
     private readonly Dictionary<NetAdress, NetworkPeer> _peers = new();
 
-    public ReiHost(int port)
+    public readonly ushort PerPeerMemory = 4096; // def value
+
+    public ReiHost(int port, ushort peerMemory)
     {
         _port = port;
+        PerPeerMemory = peerMemory;
     }
 
     public void Start()
@@ -82,7 +84,14 @@ public class ReiHost
     private void HandleIncomingData(ReadOnlySpan<byte> data, ReiEndPoint senderEndPoint)
     {
         
-        
+        NetAdress remoteAddr = senderEndPoint.GetNetAdress();
+        if(!_peers.TryGetValue(remoteAddr, out var peer))
+        {
+            peer = new NetworkPeer(senderEndPoint, (uint)_peers.Count, PerPeerMemory);
+            _peers[remoteAddr] = peer;
+        }
+
+        // TODO Packet => peer
 
     }
 
