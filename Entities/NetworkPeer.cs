@@ -1,7 +1,11 @@
 
+using System.Buffers;
 using System.Diagnostics;
 using System.Net;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Core.Owerwrite;
+using SPSC.Packets;
 
 namespace Entities;
 
@@ -22,10 +26,23 @@ public class NetworkPeer
         Id = id;
         _connectionTime = Stopwatch.GetTimestamp();
 
-        _connectionToken = (ulong)Math.Abs(Random.Shared.NextInt64());
+        _connectionToken = (ulong)Random.Shared.NextInt64();
 
         _spscBuffer = new SpscRingBuffer(memory);
 
     }
+
+    public void ReceivePacket(ReadOnlySpan<byte> packetData)
+    {
+        
+        PacketHeader header = MemoryMarshal.Read<PacketHeader>(packetData);
+        
+        int headerSize = Unsafe.SizeOf<PacketHeader>();
+        ReadOnlySpan<byte> payload = packetData[headerSize..];
+
+        _spscBuffer.Write(packetData);
+
+    }
+
 
 }

@@ -16,6 +16,7 @@ public class ReiHost
 
     private readonly int _port;
     private readonly Dictionary<NetAdress, NetworkPeer> _peers = new();
+    private uint _nextPeerId = 0;
 
     public readonly ushort PerPeerMemory = 4096; // def value
 
@@ -87,11 +88,12 @@ public class ReiHost
         NetAdress remoteAddr = senderEndPoint.GetNetAdress();
         if(!_peers.TryGetValue(remoteAddr, out var peer))
         {
-            peer = new NetworkPeer(senderEndPoint, (uint)_peers.Count, PerPeerMemory);
+            peer = new NetworkPeer(senderEndPoint, _nextPeerId, PerPeerMemory);
             _peers[remoteAddr] = peer;
+            _nextPeerId++;
         }
 
-        // TODO Packet => peer
+        peer.ReceivePacket(data);
 
     }
 

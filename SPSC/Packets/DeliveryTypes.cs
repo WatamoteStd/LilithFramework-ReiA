@@ -2,7 +2,7 @@
 using System.Runtime.InteropServices;
 
 namespace SPSC.Packets;
-public enum PacketTypes : byte
+public enum DeliveryTypes : byte
 {
     UnreliableUnordered = 0,
     UnreliableOrdered = 1,
