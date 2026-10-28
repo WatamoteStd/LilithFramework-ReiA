@@ -2,7 +2,9 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Security;
+using Core.Owerwrite;
 using Entities;
+using Entities.Network;
 
 namespace Core;
 
@@ -14,7 +16,7 @@ public class ReiHost
     private volatile bool _isRunning;
 
     private readonly int _port;
-    private readonly Dictionary<uint, NetworkPeer> _peers = new();
+    private readonly Dictionary<NetAdress, NetworkPeer> _peers = new();
 
     public ReiHost(int port)
     {
@@ -48,8 +50,7 @@ public class ReiHost
     {
         
         byte[] buffer = new byte[1500];
-
-        EndPoint remoteEndPoint = new IPEndPoint(IPAddress.Any, 0);
+        EndPoint remoteEp = new ReiEndPoint(0, 0);
 
         while(_isRunning)
         {
@@ -57,11 +58,11 @@ public class ReiHost
             try
             {
                 
-                int receivedBytes = _socket!.ReceiveFrom(buffer, 0, buffer.Length, SocketFlags.None, ref remoteEndPoint);
+                int receivedBytes = _socket!.ReceiveFrom(buffer, buffer.Length, SocketFlags.None, ref remoteEp);
 
                 if(receivedBytes > 0)
                 {
-                    HandleIncomingData(buffer.AsSpan(0, receivedBytes), (IPEndPoint)remoteEndPoint);
+                    HandleIncomingData(buffer.AsSpan(0, receivedBytes), (ReiEndPoint)remoteEp);
                 }
 
             }
@@ -78,7 +79,7 @@ public class ReiHost
 
     }
 
-    private void HandleIncomingData(ReadOnlySpan<byte> data, IPEndPoint senderEndPoint)
+    private void HandleIncomingData(ReadOnlySpan<byte> data, ReiEndPoint senderEndPoint)
     {
         
         
