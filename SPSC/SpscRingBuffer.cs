@@ -1,12 +1,9 @@
-
-
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 [StructLayout(LayoutKind.Explicit, Size = 128)]
-public unsafe struct SpscRingBuffer : IDisposable
+public unsafe sealed class SpscRingBuffer : IDisposable
 {
-    [FieldOffset(0)] ulong Count;
     [FieldOffset(8)] ushort Capacity;
     [FieldOffset(16)] byte* MemoryPtr;
     [FieldOffset(32)] byte* PtrReader;
@@ -14,7 +11,7 @@ public unsafe struct SpscRingBuffer : IDisposable
 
     public SpscRingBuffer(ushort capacity)
     {
-        
+
         if ((capacity & (capacity - 1)) != 0 || capacity < 4096)
         {
             throw new ArgumentException($"[SpscRingBuffer| Initialization] Invalid capacity. ( It might be always ^2 and now lower than 4096 bytes.)");
@@ -23,7 +20,6 @@ public unsafe struct SpscRingBuffer : IDisposable
         MemoryPtr = (byte*)NativeMemory.Alloc(capacity);
 
         Capacity = capacity;
-        Count = 0;
 
         PtrReader = MemoryPtr;
         PtrWriter = MemoryPtr;
@@ -33,22 +29,35 @@ public unsafe struct SpscRingBuffer : IDisposable
     public void Write(ReadOnlySpan<byte> packetSpan)
     {
 
-
-        if (Count + (ulong)packetSpan.Length + 2 > Capacity)
+        int requiredSize = packetSpan.Length + 2;
+        if(requiredSize > Capacity)
         {
-            Console.WriteLine($"[Packet Drop] Packet bigger than capacity of the buffer. {packetSpan.Length} bytes");
+            Console.WriteLine($"[PacketDrop] Packet was bigger than actual capacity of buffer. Size:{requiredSize} Capacity:{Capacity}");
             return;
         }
-        
-        if (PtrWriter + packetSpan.Length + 2 > MemoryPtr + Capacity)
+
+        long corruped = PtrWriter >= PtrReader
+            ? (PtrWriter - PtrReader)
+            : (Capacity - (PtrReader - PtrWriter));
+
+        long freeSpace = Capacity - corruped;
+
+        if(requiredSize > freeSpace)
         {
-            ulong tailSpace = (ulong)((MemoryPtr + Capacity) - PtrWriter);
-            if (tailSpace >= 2)
-            {
-                *(ushort*)PtrWriter = 0;
-            }
-            Count += tailSpace;
+            Console.WriteLine($"[PacketDrop] Buffer full. Needed:{requiredSize} Free:{freeSpace}");
+            return;
+
+        }
+
+        if((MemoryPtr + Capacity) - PtrWriter < requiredSize)
+        {
+            *(ushort*)PtrWriter = 0;
             PtrWriter = MemoryPtr;
+        }
+
+        if(PtrReader - PtrWriter < requiredSize)
+        {
+            return;
         }
 
         *(ushort*)PtrWriter = (ushort)packetSpan.Length;
@@ -56,11 +65,9 @@ public unsafe struct SpscRingBuffer : IDisposable
 
         fixed(byte* packetPtr = packetSpan)
         {
-            
+
             Buffer.MemoryCopy(packetPtr, PtrWriter, Capacity, packetSpan.Length);
             PtrWriter += packetSpan.Length;
-
-            Count += (ulong)packetSpan.Length + 2;
 
         }
 
@@ -68,51 +75,44 @@ public unsafe struct SpscRingBuffer : IDisposable
 
     public void Read(Span<byte> readBuffer)
     {
-        
-        if(PtrReader == PtrWriter && Count == 0) return;
 
-        if (PtrReader == MemoryPtr + Capacity - 1)
-        {
-            Count -= 1;
-            PtrReader = MemoryPtr;
-        }
+        if (PtrReader == PtrWriter) return;
 
-        ushort packetLength = *(ushort*)PtrReader;
+        ushort packetLength = *(ushort*)PtrReader; 
 
         if(packetLength == 0)
         {
-            ulong skippedTail = (ulong)((MemoryPtr + Capacity) - PtrReader);
-            Count -= skippedTail;
-
             PtrReader = MemoryPtr;
             packetLength = *(ushort*)PtrReader;
+
+            if (PtrReader == PtrWriter) return;
         }
+
+        if(packetLength > readBuffer.Length) return; // small buffer size
 
         PtrReader += 2;
 
         fixed(byte* bufferPtr = readBuffer)
         {
-            
             Buffer.MemoryCopy(PtrReader, bufferPtr, readBuffer.Length, packetLength);
-
         }
 
         PtrReader += packetLength;
-        Count -= (ulong)packetLength + 2;
 
     }
 
 
     public void Dispose()
     {
-        
-        if(PtrReader != null)
+
+        if (PtrReader != null)
         {
             NativeMemory.Free(MemoryPtr);
             MemoryPtr = null;
             PtrReader = null;
             PtrWriter = null;
         }
+        GC.SuppressFinalize(this);
 
     }
 
