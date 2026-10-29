@@ -73,8 +73,10 @@ public unsafe sealed class SpscRingBuffer : IDisposable
 
     }
 
-    public void Read(Span<byte> readBuffer)
+    public void Read(Span<byte> readBuffer, out int bytesRead)
     {
+
+        bytesRead = 0;
 
         if (PtrReader == PtrWriter) return;
 
@@ -91,6 +93,7 @@ public unsafe sealed class SpscRingBuffer : IDisposable
         if(packetLength > readBuffer.Length) return; // small buffer size
 
         PtrReader += 2;
+        bytesRead = packetLength;
 
         fixed(byte* bufferPtr = readBuffer)
         {
