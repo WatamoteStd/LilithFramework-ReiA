@@ -1,9 +1,11 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Security;
 using Core.Owerwrite;
 using Entities;
 using Entities.Network;
+using SPSC.Packets;
 
 namespace Core;
 
@@ -54,6 +56,7 @@ public class ReiHost
         
         byte[] buffer = new byte[1500];
         EndPoint remoteEp = new ReiEndPoint(0, 0);
+        int headerSize = Unsafe.SizeOf<PacketHeader>();
 
         while(_isRunning)
         {
@@ -63,7 +66,7 @@ public class ReiHost
                 
                 int receivedBytes = _socket!.ReceiveFrom(buffer, buffer.Length, SocketFlags.None, ref remoteEp);
 
-                if(receivedBytes > 0)
+                if(receivedBytes >= headerSize)
                 {
                     HandleIncomingData(buffer.AsSpan(0, receivedBytes), (ReiEndPoint)remoteEp);
                 }

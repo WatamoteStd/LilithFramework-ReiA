@@ -11,14 +11,15 @@ namespace Entities;
 
 public class NetworkPeer
 {
-    
+
     public uint Id {get; private set;}
-    public ReiEndPoint EndPoint {get; private set;} 
+    public ReiEndPoint EndPoint {get; private set;}
     private readonly ulong _connectionToken;
     private long _connectionTime;
     private uint _packetsReceived;
     private uint _packetsSended;
     private readonly SpscRingBuffer _spscBuffer;
+    private ulong _bytesReceived;
 
     public NetworkPeer(ReiEndPoint endPoint, uint id, ushort memory)
     {
@@ -34,13 +35,24 @@ public class NetworkPeer
 
     public void ReceivePacket(ReadOnlySpan<byte> packetData)
     {
-        
+
         PacketHeader header = MemoryMarshal.Read<PacketHeader>(packetData);
-        
+
         int headerSize = Unsafe.SizeOf<PacketHeader>();
         ReadOnlySpan<byte> payload = packetData[headerSize..];
 
-        _spscBuffer.Write(packetData);
+        switch(header.Type)
+        {
+
+            case DeliveryTypes.UnreliableUnordered:
+                {
+                    if (payload.Length > 0) _spscBuffer.Write(payload);
+                }
+                break;
+
+        }
+
+        _packetsReceived++;
 
     }
 
