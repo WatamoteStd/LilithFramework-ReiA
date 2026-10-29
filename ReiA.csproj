@@ -4,7 +4,18 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks> 
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+
+  <PropertyGroup>
+  <TargetFramework>net8.0</TargetFramework>
+  <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  <PackageId>ReiA</PackageId>
+  <Version>0.0.0.2</Version>
+  <Authors>Shiranai</Authors>
+  <Company>WatamoteSTD</Company>
+  <Description>ReliableUdp transport</Description>
+  <PackageTags>csharp dotnet</PackageTags>
+</PropertyGroup>
 
 </Project>

@@ -11,16 +11,18 @@ namespace Core;
 
 public class ReiHost
 {
-    
+
     private  Socket? _socket;
     private  Thread? _thread;
     private volatile bool _isRunning;
 
     private readonly int _port;
     private readonly Dictionary<NetAdress, NetworkPeer> _peers = new();
+    private readonly ReaderWriterLockSlim _lock = new();
     private uint _nextPeerId = 0;
 
     public readonly ushort PerPeerMemory = 4096; // def value
+    public int PeerCount => _peers.Count;
 
     public ReiHost(int port, ushort peerMemory)
     {
@@ -30,7 +32,7 @@ public class ReiHost
 
     public void Start()
     {
-        
+
         if(_isRunning) return;
 
         _socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
@@ -53,30 +55,30 @@ public class ReiHost
 
     private void ReceiveLoop()
     {
-        
+
         byte[] buffer = new byte[1500];
         EndPoint remoteEp = new ReiEndPoint(0, 0);
         int headerSize = Unsafe.SizeOf<PacketHeader>();
 
-        while(_isRunning)
+        while (_isRunning)
         {
-            
+
             try
             {
-                
+
                 int receivedBytes = _socket!.ReceiveFrom(buffer, buffer.Length, SocketFlags.None, ref remoteEp);
 
-                if(receivedBytes >= headerSize)
+                if (receivedBytes >= headerSize)
                 {
                     HandleIncomingData(buffer.AsSpan(0, receivedBytes), (ReiEndPoint)remoteEp);
                 }
 
             }
-            catch(SocketException ex) when (_isRunning)
+            catch (SocketException ex) when (_isRunning)
             {
                 Console.WriteLine($"[ReiHost] Socket error: {ex.Message}");
             }
-            catch(ObjectDisposedException)
+            catch (ObjectDisposedException)
             {
                 break;
             }
@@ -87,12 +89,20 @@ public class ReiHost
 
     private void HandleIncomingData(ReadOnlySpan<byte> data, ReiEndPoint senderEndPoint)
     {
-        
+
         NetAdress remoteAddr = senderEndPoint.GetNetAdress();
-        if(!_peers.TryGetValue(remoteAddr, out var peer))
+        if (!_peers.TryGetValue(remoteAddr, out var peer))
         {
             peer = new NetworkPeer(senderEndPoint, _nextPeerId, PerPeerMemory);
-            _peers[remoteAddr] = peer;
+            _lock.EnterWriteLock();
+            try
+            {
+                _peers[remoteAddr] = peer;
+            }
+            finally
+            {
+                _lock.ExitWriteLock();
+            }
             _nextPeerId++;
         }
 
@@ -100,9 +110,21 @@ public class ReiHost
 
     }
 
+    /// <summary>
+    /// Created only for fast test. If this method exists in your version write me to deleate it.
+    /// A lot of allocation at every usage, use only if you don't care
+    /// </summary>
+    /// <returns></returns>
+    public NetworkPeer[] GetPeers()
+    {
+        return _peers.Values.ToArray();
+    }
+
+
+
     public void Stop()
     {
-        
+
         _isRunning = false;
         _socket?.Close();
         _socket?.Dispose();
