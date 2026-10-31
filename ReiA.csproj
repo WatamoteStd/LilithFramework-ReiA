@@ -11,7 +11,7 @@
   <TargetFramework>net8.0</TargetFramework>
   <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   <PackageId>ReiA</PackageId>
-  <Version>0.0.0.2</Version>
+  <Version>0.0.0.3</Version>
   <Authors>Shiranai</Authors>
   <Company>WatamoteSTD</Company>
   <Description>ReliableUdp transport</Description>

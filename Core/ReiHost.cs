@@ -19,6 +19,8 @@ public class ReiHost
     private readonly int _port;
     private readonly Dictionary<NetAdress, NetworkPeer> _peers = new();
     private readonly ReaderWriterLockSlim _lock = new();
+    private volatile NetworkPeer[] _cachedPeersArray = new NetworkPeer[0];
+
     private uint _nextPeerId = 0;
 
     public readonly ushort PerPeerMemory = 4096; // def value
@@ -98,6 +100,7 @@ public class ReiHost
             try
             {
                 _peers[remoteAddr] = peer;
+                _cachedPeersArray = _peers.Values.ToArray();
             }
             finally
             {
@@ -111,13 +114,12 @@ public class ReiHost
     }
 
     /// <summary>
-    /// Created only for fast test. If this method exists in your version write me to deleate it.
-    /// A lot of allocation at every usage, use only if you don't care
+    /// Under testing
     /// </summary>
     /// <returns></returns>
     public NetworkPeer[] GetPeers()
     {
-        return _peers.Values.ToArray();
+        return _cachedPeersArray;
     }
 
 
