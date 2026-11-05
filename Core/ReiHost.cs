@@ -1,10 +1,13 @@
+using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Security;
 using Core.Owerwrite;
 using Entities;
 using Entities.Network;
+using ReiA;
 using SPSC.Packets;
 
 namespace Core;
@@ -21,6 +24,9 @@ public class ReiHost
     private readonly ReaderWriterLockSlim _lock = new();
     private volatile NetworkPeer[] _cachedPeersArray = new NetworkPeer[0];
 
+    private uint _sequenceId = 0;
+    private readonly int _headerSize;
+
     private uint _nextPeerId = 0;
 
     public readonly ushort PerPeerMemory = 4096; // def value
@@ -30,6 +36,7 @@ public class ReiHost
     {
         _port = port;
         PerPeerMemory = peerMemory;
+        _headerSize = Unsafe.SizeOf<PacketHeader>();
     }
 
     public void Start()
@@ -93,9 +100,10 @@ public class ReiHost
     {
 
         NetAdress remoteAddr = senderEndPoint.GetNetAdress();
+        
         if (!_peers.TryGetValue(remoteAddr, out var peer))
         {
-            peer = new NetworkPeer(senderEndPoint, _nextPeerId, PerPeerMemory);
+            peer = new NetworkPeer(new ReiEndPoint(remoteAddr.Ip, remoteAddr.Port), _nextPeerId, PerPeerMemory);
             _lock.EnterWriteLock();
             try
             {
@@ -123,6 +131,44 @@ public class ReiHost
     }
 
 
+    /// <summary>
+    /// Send UnreliableUnordered packet with data limit 1495 bytes.
+    /// </summary>
+    /// <param name="peer"></param>
+    /// <param name="data"></param>
+    public void SendTo(NetworkPeer peer, ReadOnlySpan<byte> data)
+    {
+        Socket? socket = _socket;
+        
+        if(socket is null || !_isRunning || data.Length is 0 or > ReiProtocol.PAYLOAD_MAXIMUM_SIZE) return;
+
+
+        Span<byte> buffer = stackalloc byte[_headerSize + data.Length];
+
+        uint seq = Interlocked.Increment(ref _sequenceId);
+        PacketHeader header = new PacketHeader(DeliveryTypes.UnreliableUnordered, seq);
+
+        MemoryMarshal.Write(buffer[0.._headerSize], in header);
+        data.CopyTo(buffer[_headerSize..]);
+
+        try
+        {
+            
+            socket.SendTo(buffer, peer.EndPoint);
+
+        }
+        catch(SocketException)
+        {
+
+        }
+        catch(ObjectDisposedException)
+        {
+
+        }
+
+    }
+
+
 
     public void Stop()
     {
@@ -132,6 +178,7 @@ public class ReiHost
         _socket?.Dispose();
         _thread?.Join();
         Console.WriteLine("[ReiHost] Stopped.");
+
     }
 
 }

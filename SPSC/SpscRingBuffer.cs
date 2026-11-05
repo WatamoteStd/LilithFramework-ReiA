@@ -49,13 +49,20 @@ public unsafe sealed class SpscRingBuffer : IDisposable
 
         }
 
-        if((MemoryPtr + Capacity) - PtrWriter < requiredSize)
+        // Reserve two bytes at the end of the buffer: the wrap marker must always fit.
+        byte* limit = MemoryPtr + Capacity - 2;
+        bool wrapped = false;
+
+        if(limit - PtrWriter < requiredSize)
         {
             *(ushort*)PtrWriter = 0;
             PtrWriter = MemoryPtr;
+            wrapped = true;
         }
 
-        if(PtrReader - PtrWriter < requiredSize)
+        // This check only makes sense after a wrap. Before it, PtrReader - PtrWriter
+        // is negative and every packet would be dropped (that was the old bug).
+        if(wrapped && PtrReader - PtrWriter < requiredSize)
         {
             return;
         }

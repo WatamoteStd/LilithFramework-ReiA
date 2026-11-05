@@ -56,5 +56,11 @@ public class NetworkPeer
 
     }
 
+    public bool TryReadPacket(Span<byte> destination, out int bytesRead)
+    {
+        _spscBuffer.Read(destination, out bytesRead);
+        return bytesRead > 0;
+    }
+
 
 }
