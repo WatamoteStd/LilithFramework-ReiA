@@ -32,7 +32,7 @@ public class ReiHost
     public readonly ushort PerPeerMemory = 4096; // def value
     public int PeerCount => _peers.Count;
 
-    public ReiHost(int port, ushort peerMemory)
+    public ReiHost(int port, ushort peerMemory = 4096)
     {
         _port = port;
         PerPeerMemory = peerMemory;
@@ -117,6 +117,7 @@ public class ReiHost
             _nextPeerId++;
         }
 
+        Console.WriteLine($"[ReiHost] Received {data.Length} bytes from {senderEndPoint}");
         peer.ReceivePacket(data);
 
     }

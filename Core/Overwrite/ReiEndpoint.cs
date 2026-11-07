@@ -40,4 +40,11 @@ public class ReiEndPoint : EndPoint
         return this;
     }
 
+    public override string ToString()
+    {
+        NetAdress addr = GetNetAdress();
+        IPAddress ip = new IPAddress(addr.Ip);
+        return $"{ip}:{addr.Port}";
+    }
+
 }
